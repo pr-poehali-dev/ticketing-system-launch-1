@@ -1,9 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import jsQR from "jsqr";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
 import Icon from "@/components/ui/icon";
 import { useAuth } from "@/context/AuthContext";
 
@@ -14,36 +12,30 @@ const mockTickets = [
   { id: "TW-2025-087", event: "Stand Up Night", date: "12 апр 2025", time: "19:00", location: "Москва, Comedy Club", seat: "VIP зона, стол 3", price: "2 000 ₽", status: "used", color: "from-green-500 to-teal-500" },
 ];
 
-const crmStats = [
-  { label: "Продано билетов", value: "3 842", change: "+12%", icon: "Ticket", color: "from-violet-500 to-pink-500" },
-  { label: "Выручка за месяц", value: "₽ 9.2M", change: "+8%", icon: "TrendingUp", color: "from-blue-500 to-cyan-500" },
-  { label: "Активных событий", value: "24", change: "+3", icon: "Calendar", color: "from-amber-500 to-orange-500" },
-  { label: "Покупателей", value: "1 201", change: "+156", icon: "Users", color: "from-green-500 to-teal-500" },
+type OrgEvent = {
+  id: number;
+  name: string;
+  location: string;
+  date: string;
+  time: string;
+  total: number;
+  sold: number;
+  reserved: number;
+  invited: number;
+  revenue: number;
+  status: "active" | "paused" | "past";
+  expanded: boolean;
+  image?: string;
+};
+
+const initOrgEvents: OrgEvent[] = [
+  { id: 1, name: "Neon Beats Festival", location: "Москва, Олимпийский", date: "15 мая 2026", time: "20:00", total: 1000, sold: 880, reserved: 12, invited: 5, revenue: 2816000, status: "active", expanded: false },
+  { id: 2, name: "Чемпионат по футболу", location: "СПб, Газпром Арена", date: "22 мая 2026", time: "18:30", total: 45000, sold: 32000, reserved: 800, invited: 200, revenue: 57600000, status: "active", expanded: false },
+  { id: 3, name: "Stand Up: Новый сезон", location: "Москва, Comedy Club", date: "1 июня 2026", time: "19:00", total: 300, sold: 120, reserved: 8, invited: 0, revenue: 240000, status: "active", expanded: false },
 ];
 
-const initTasks = [
-  { id: 1, title: "Разместить рекламу Neon Beats", assignee: "Анна К.", deadline: "12 мая", status: "todo", event: "Neon Beats Festival" },
-  { id: 2, title: "Согласовать схему зала", assignee: "Дмитрий В.", deadline: "10 мая", status: "inprogress", event: "Чемпионат по футболу" },
-  { id: 3, title: "Настроить сканеры входа", assignee: "Сергей Л.", deadline: "14 мая", status: "inprogress", event: "Neon Beats Festival" },
-  { id: 4, title: "Отчёт по продажам апрель", assignee: "Анна К.", deadline: "5 мая", status: "done", event: "" },
-];
-
-const orgEvents = [
-  { id: 1, name: "Neon Beats Festival", date: "15 мая 2026", sold: 880, total: 1000, revenue: "2.2M", status: "active" },
-  { id: 2, name: "Чемпионат по футболу", date: "22 мая 2026", sold: 32000, total: 45000, revenue: "5.8M", status: "active" },
-  { id: 3, name: "Stand Up: Новый сезон", date: "1 июня 2026", sold: 120, total: 300, revenue: "96K", status: "active" },
-];
-
-const ZONE_COLORS = ["#8B5CF6", "#EC4899", "#06B6D4", "#F59E0B", "#10B981", "#3B82F6", "#EF4444"];
-type Zone = { id: number; name: string; x: number; y: number; w: number; h: number; color: string };
-
-const DEFAULT_ZONES: Zone[] = [
-  { id: 1, name: "Сцена", x: 280, y: 20, w: 240, h: 80, color: "#8B5CF6" },
-  { id: 2, name: "Танцпол", x: 160, y: 140, w: 480, h: 200, color: "#EC4899" },
-  { id: 3, name: "VIP Лево", x: 20, y: 140, w: 120, h: 200, color: "#F59E0B" },
-  { id: 4, name: "VIP Право", x: 660, y: 140, w: 120, h: 200, color: "#F59E0B" },
-  { id: 5, name: "Бар", x: 20, y: 380, w: 160, h: 80, color: "#10B981" },
-  { id: 6, name: "Вход", x: 300, y: 460, w: 200, h: 60, color: "#06B6D4" },
+const pastOrgEvents: OrgEvent[] = [
+  { id: 10, name: "Stand Up Night", location: "Москва, Comedy Club", date: "12 апр 2025", time: "19:00", total: 300, sold: 298, reserved: 0, invited: 2, revenue: 596000, status: "past", expanded: false },
 ];
 
 /* ══════════════════════════════════════════════
@@ -60,19 +52,27 @@ function BuyerProfile() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
+      {/* Top bar */}
+      <header className="fixed top-0 left-0 right-0 z-50 h-14 glass border-b border-white/5 flex items-center px-5 gap-4">
+        <Link to="/" className="flex items-center gap-2 mr-4">
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center">
+            <Icon name="Ticket" size={14} className="text-white" />
+          </div>
+          <span className="font-bold gradient-text" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>TicketWave</span>
+        </Link>
+        <div className="flex-1" />
+        <span className="text-sm text-muted-foreground hidden sm:block">{user?.email}</span>
+        <button onClick={() => { logout(); navigate("/"); }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg glass neon-border text-sm text-muted-foreground hover:text-foreground transition-all">
+          <Icon name="LogOut" size={13} /> Выйти
+        </button>
+      </header>
 
       {selectedTicket && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setSelectedTicket(null)}>
-          <div className="glass rounded-3xl p-6 max-w-sm w-full neon-border card-glow animate-slide-up" onClick={e => e.stopPropagation()}>
+          <div className="glass rounded-3xl p-6 max-w-sm w-full neon-border card-glow" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
-              <div>
-                <h3 className="font-bold text-lg">{selectedTicket.event}</h3>
-                <p className="text-muted-foreground text-sm">{selectedTicket.id}</p>
-              </div>
-              <button onClick={() => setSelectedTicket(null)} className="p-2 rounded-lg hover:bg-white/5">
-                <Icon name="X" size={18} className="text-muted-foreground" />
-              </button>
+              <div><h3 className="font-bold text-lg">{selectedTicket.event}</h3><p className="text-muted-foreground text-sm">{selectedTicket.id}</p></div>
+              <button onClick={() => setSelectedTicket(null)} className="p-2 rounded-lg hover:bg-white/5"><Icon name="X" size={18} className="text-muted-foreground" /></button>
             </div>
             <div className="bg-white rounded-2xl p-4 flex items-center justify-center mb-5">
               <QRCodeSVG value={`TICKETWAVE:${selectedTicket.id}:${selectedTicket.event}:${selectedTicket.date}`} size={200} bgColor="#ffffff" fgColor="#1a0533" level="H" />
@@ -90,57 +90,40 @@ function BuyerProfile() {
         </div>
       )}
 
-      <div className="pt-24 pb-8 px-4 sm:px-6 lg:px-8 max-w-3xl mx-auto">
-        {/* Header */}
-        <div className="glass neon-border rounded-3xl p-5 mb-6 flex items-center gap-4">
-          <div className="relative">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center animate-pulse-glow">
-              <Icon name="User" size={24} className="text-white" />
-            </div>
-            <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-green-500 border-2 border-background" />
+      <div className="pt-20 pb-8 px-4 sm:px-6 max-w-3xl mx-auto">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center">
+            <Icon name="User" size={22} className="text-white" />
           </div>
-          <div className="flex-1">
+          <div>
             <h1 className="font-bold text-lg" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>{user?.name}</h1>
-            <p className="text-muted-foreground text-sm">{user?.email}</p>
-            <span className="inline-flex items-center gap-1 text-xs text-violet-400 mt-1">
-              <Icon name="Ticket" size={11} /> Покупатель
-            </span>
+            <span className="text-xs text-violet-400 flex items-center gap-1"><Icon name="Ticket" size={11} /> Покупатель</span>
           </div>
-          <button onClick={() => { logout(); navigate("/"); }} className="flex items-center gap-1.5 px-3 py-2 rounded-xl glass neon-border text-sm text-muted-foreground hover:text-foreground transition-all">
-            <Icon name="LogOut" size={14} />
-            Выйти
-          </button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-1 p-1 glass rounded-2xl neon-border mb-6 w-fit">
-          {(["active", "used"] as const).map((t) => (
-            <button key={t} onClick={() => setActiveTab(t)} className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${activeTab === t ? "bg-gradient-to-r from-violet-600 to-pink-600 text-white" : "text-muted-foreground hover:text-foreground"}`}>
+        <div className="flex gap-1 p-1 bg-card rounded-xl border border-border mb-6 w-fit">
+          {(["active", "used"] as const).map(t => (
+            <button key={t} onClick={() => setActiveTab(t)} className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === t ? "bg-gradient-to-r from-violet-600 to-pink-600 text-white" : "text-muted-foreground hover:text-foreground"}`}>
               {t === "active" ? `Активные (${active.length})` : `Использованные (${used.length})`}
             </button>
           ))}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {(activeTab === "active" ? active : used).map((ticket) => (
-            <div key={ticket.id} className={`rounded-2xl overflow-hidden glass transition-all ${ticket.status === "used" ? "opacity-60" : "neon-border hover:card-glow"}`}>
-              <div className={`h-1.5 bg-gradient-to-r ${ticket.color}`} />
+          {(activeTab === "active" ? active : used).map(ticket => (
+            <div key={ticket.id} className={`rounded-2xl overflow-hidden bg-card border border-border transition-all ${ticket.status === "used" ? "opacity-60" : "hover:border-violet-500/40"}`}>
+              <div className={`h-1 bg-gradient-to-r ${ticket.color}`} />
               <div className="p-4">
                 <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <h3 className="font-bold text-sm">{ticket.event}</h3>
-                    <p className="text-muted-foreground text-xs mt-0.5">{ticket.id}</p>
-                  </div>
-                  <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${ticket.status === "used" ? "bg-muted text-muted-foreground" : "bg-green-500/20 text-green-400"}`}>
-                    {ticket.status === "used" ? "Использован" : "Активен"}
-                  </span>
+                  <div><h3 className="font-bold text-sm">{ticket.event}</h3><p className="text-muted-foreground text-xs mt-0.5">{ticket.id}</p></div>
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${ticket.status === "used" ? "bg-muted text-muted-foreground" : "bg-green-500/20 text-green-400"}`}>{ticket.status === "used" ? "Использован" : "Активен"}</span>
                 </div>
                 <div className="space-y-1.5 mb-4">
                   <div className="flex items-center gap-2 text-muted-foreground text-xs"><Icon name="Calendar" size={12} />{ticket.date}, {ticket.time}</div>
                   <div className="flex items-center gap-2 text-muted-foreground text-xs"><Icon name="MapPin" size={12} />{ticket.location}</div>
                   <div className="flex items-center gap-2 text-muted-foreground text-xs"><Icon name="Armchair" size={12} />{ticket.seat}</div>
                 </div>
-                <div className="flex items-center justify-between pt-3 border-t border-white/10">
+                <div className="flex items-center justify-between pt-3 border-t border-border">
                   <span className="font-bold text-sm">{ticket.price}</span>
                   {ticket.status === "active" && (
                     <button onClick={() => setSelectedTicket(ticket)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-pink-600 text-white text-xs font-semibold hover:opacity-90">
@@ -153,268 +136,478 @@ function BuyerProfile() {
           ))}
         </div>
       </div>
-      <Footer />
     </div>
   );
 }
 
 /* ══════════════════════════════════════════════
-   ORGANIZER PROFILE (CRM)
+   ORGANIZER PROFILE — TicketsCloud style
 ══════════════════════════════════════════════ */
-const ORG_TABS = ["Дашборд", "События", "Задачи", "Сканер", "Схемы"] as const;
-type OrgTab = typeof ORG_TABS[number];
+const SIDEBAR_ITEMS = [
+  { id: "home", label: "Главная", icon: "Home" },
+  { id: "events", label: "Мероприятия", icon: "Calendar" },
+  { id: "orders", label: "Сделки", icon: "ShoppingCart", badge: 40 },
+  { id: "promo", label: "Продвижение", icon: "Megaphone" },
+  { id: "contractors", label: "Подрядчики", icon: "Users" },
+  { id: "analytics", label: "Аналитика", icon: "BarChart2" },
+  { id: "money", label: "Деньги", icon: "Wallet" },
+  { id: "docs", label: "Документы", icon: "FileText" },
+  { id: "settings", label: "Настройки", icon: "Settings" },
+  { id: "integrations", label: "Интеграции", icon: "Plug" },
+  { id: "scanner", label: "QR-сканер", icon: "ScanLine" },
+] as const;
+
+type SidebarId = typeof SIDEBAR_ITEMS[number]["id"];
+
+function fmt(n: number) {
+  return n.toLocaleString("ru-RU") + " ₽";
+}
 
 function OrgProfile() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<OrgTab>("Дашборд");
+  const [activeSection, setActiveSection] = useState<SidebarId>("home");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const nav = (id: SidebarId) => { setActiveSection(id); setSidebarOpen(false); };
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-      <div className="pt-16 flex">
-        {/* Sidebar */}
-        <aside className="hidden lg:flex flex-col w-60 min-h-[calc(100vh-4rem)] border-r border-white/5 bg-card/50 p-4 sticky top-16">
-          {/* User card */}
-          <div className="glass neon-border rounded-2xl p-4 mb-6">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center">
-                <Icon name="Building2" size={18} className="text-white" />
-              </div>
-              <div className="min-w-0">
-                <p className="font-semibold text-sm truncate">{user?.name}</p>
-                <span className="text-xs text-amber-400 flex items-center gap-1"><Icon name="Crown" size={10} />Организатор</span>
-              </div>
+    <div className="flex min-h-screen bg-[#0f0f17] text-foreground">
+      {/* ── Sidebar ── */}
+      {/* Mobile overlay */}
+      {sidebarOpen && <div className="fixed inset-0 z-40 bg-black/60 lg:hidden" onClick={() => setSidebarOpen(false)} />}
+
+      <aside className={`fixed top-0 left-0 h-full z-50 w-56 bg-[#13131f] border-r border-white/5 flex flex-col transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}>
+        {/* Org name */}
+        <div className="px-4 py-5 border-b border-white/5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-bold text-sm leading-tight">{user?.name}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Организатор</p>
             </div>
-            <button onClick={() => { logout(); navigate("/"); }} className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl glass text-xs text-muted-foreground hover:text-foreground transition-all">
-              <Icon name="LogOut" size={12} /> Выйти
-            </button>
+            <Icon name="ChevronDown" size={14} className="text-muted-foreground" />
           </div>
-
-          <p className="text-xs text-muted-foreground uppercase tracking-widest mb-3 px-2">Управление</p>
-          {ORG_TABS.map((tab) => (
-            <button key={tab} onClick={() => setActiveTab(tab)}
-              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-all mb-1 ${activeTab === tab ? "bg-gradient-to-r from-amber-500/20 to-orange-500/10 text-amber-400 border border-amber-500/20" : "text-muted-foreground hover:text-foreground hover:bg-white/5"}`}
-            >
-              <Icon name={tab === "Дашборд" ? "LayoutDashboard" : tab === "События" ? "Calendar" : tab === "Задачи" ? "CheckSquare" : tab === "Сканер" ? "ScanLine" : "Map"} size={16} />
-              {tab}
-            </button>
-          ))}
-        </aside>
-
-        {/* Mobile bottom nav */}
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 glass border-t border-white/5 px-1 py-2 flex justify-around">
-          {ORG_TABS.map((tab) => (
-            <button key={tab} onClick={() => setActiveTab(tab)} className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg text-xs transition-colors ${activeTab === tab ? "text-amber-400" : "text-muted-foreground"}`}>
-              <Icon name={tab === "Дашборд" ? "LayoutDashboard" : tab === "События" ? "Calendar" : tab === "Задачи" ? "CheckSquare" : tab === "Сканер" ? "ScanLine" : "Map"} size={18} />
-              {tab}
-            </button>
-          ))}
         </div>
 
-        <main className="flex-1 p-4 sm:p-6 pb-24 lg:pb-6 max-w-5xl overflow-x-hidden">
-          {activeTab === "Дашборд" && <OrgDashboard />}
-          {activeTab === "События" && <OrgEvents />}
-          {activeTab === "Задачи" && <OrgTasks />}
-          {activeTab === "Сканер" && <QRScanner />}
-          {activeTab === "Схемы" && <VenueScheme />}
+        {/* Nav items */}
+        <nav className="flex-1 py-3 overflow-y-auto">
+          {SIDEBAR_ITEMS.map(item => (
+            <button key={item.id} onClick={() => nav(item.id)}
+              className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors relative ${activeSection === item.id ? "bg-white/8 text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-white/4"}`}
+            >
+              {activeSection === item.id && <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-violet-500" />}
+              <Icon name={item.icon} size={16} />
+              {item.label}
+              {"badge" in item && item.badge ? (
+                <span className="ml-auto bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{item.badge}</span>
+              ) : null}
+            </button>
+          ))}
+        </nav>
+
+        {/* Bottom */}
+        <div className="p-4 border-t border-white/5">
+          <button onClick={() => { logout(); navigate("/"); }} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors">
+            <Icon name="LogOut" size={16} /> Выход
+          </button>
+          <div className="mt-3 flex items-center justify-between">
+            <span className="text-xs text-muted-foreground font-bold" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>TicketWave</span>
+          </div>
+        </div>
+      </aside>
+
+      {/* ── Main ── */}
+      <div className="flex-1 lg:ml-56 flex flex-col min-h-screen">
+        {/* Top bar mobile */}
+        <header className="lg:hidden flex items-center gap-3 px-4 h-14 border-b border-white/5 bg-[#13131f] sticky top-0 z-30">
+          <button onClick={() => setSidebarOpen(true)} className="p-1.5 rounded-lg hover:bg-white/5">
+            <Icon name="Menu" size={20} />
+          </button>
+          <span className="font-bold text-sm gradient-text" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>TicketWave</span>
+        </header>
+
+        <main className="flex-1 p-5 sm:p-7 max-w-6xl w-full">
+          {activeSection === "home" && <OrgHome onNav={nav} />}
+          {activeSection === "events" && <OrgEvents />}
+          {activeSection === "orders" && <OrgOrders />}
+          {activeSection === "analytics" && <OrgAnalytics />}
+          {activeSection === "money" && <OrgMoney />}
+          {activeSection === "scanner" && <QRScanner />}
+          {(activeSection === "promo" || activeSection === "contractors" || activeSection === "docs" || activeSection === "settings" || activeSection === "integrations") && <ComingSoon label={SIDEBAR_ITEMS.find(i => i.id === activeSection)?.label ?? ""} />}
         </main>
       </div>
     </div>
   );
 }
 
-/* ─── Org Dashboard ─── */
-function OrgDashboard() {
+/* ─── Org Home (Dashboard) ─── */
+function OrgHome({ onNav }: { onNav: (id: SidebarId) => void }) {
+  const [eventsTab, setEventsTab] = useState<"current" | "past">("current");
+  const [events, setEvents] = useState(initOrgEvents);
+  const [showCreate, setShowCreate] = useState(false);
+
+  const totalBalance = 137835;
+  const totalSold = 163500;
+  const totalWithdrawable = 0;
+  const incomingOrders = 40;
+  const todaySales = 0;
+
+  const toggle = (id: number) => setEvents(prev => prev.map(e => e.id === id ? { ...e, expanded: !e.expanded } : e));
+  const toggleStatus = (id: number) => setEvents(prev => prev.map(e => e.id === id ? { ...e, status: e.status === "active" ? "paused" : "active" } : e));
+
+  const displayed = eventsTab === "current" ? events.filter(e => e.status !== "past") : pastOrgEvents;
+
   return (
-    <div className="animate-slide-up">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
-          CRM <span className="gradient-text">Дашборд</span>
-        </h1>
-        <p className="text-muted-foreground mt-1">Сегодня, 30 апреля 2026</p>
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Главная</h1>
+        <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors">
+          Создать <Icon name="ChevronDown" size={14} />
+        </button>
       </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {crmStats.map((s) => (
-          <div key={s.label} className="glass neon-border rounded-2xl p-4 hover:card-glow transition-all">
-            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${s.color} flex items-center justify-center mb-3`}>
-              <Icon name={s.icon} size={18} className="text-white" />
-            </div>
-            <p className="text-2xl font-bold">{s.value}</p>
-            <p className="text-muted-foreground text-xs mt-0.5">{s.label}</p>
-            <p className="text-green-400 text-xs mt-1 font-medium">{s.change}</p>
+
+      {/* Finance cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+        {/* Card 1 */}
+        <div className="bg-card border border-border rounded-2xl p-5">
+          <p className="text-sm text-muted-foreground mb-2">Состояние счёта</p>
+          <p className="text-3xl font-bold">{fmt(totalBalance)}</p>
+        </div>
+        {/* Card 2 */}
+        <div className="bg-card border border-border rounded-2xl p-5">
+          <div className="flex items-start justify-between">
+            <p className="text-sm text-muted-foreground mb-2">Продано на будущие мероприятия</p>
           </div>
+          <div className="flex items-end gap-3">
+            <p className="text-3xl font-bold">{fmt(totalSold)}</p>
+            <span className="flex items-center gap-1 text-sm text-muted-foreground mb-1"><Icon name="Lock" size={13} /> 100%</span>
+          </div>
+        </div>
+        {/* Card 3 */}
+        <div className="bg-card border border-border rounded-2xl p-5">
+          <div className="flex items-start justify-between">
+            <p className="text-sm text-muted-foreground mb-2">Сумма к возврату</p>
+            <div className="flex flex-col items-end gap-1">
+              <button className="text-xs text-violet-400 hover:underline">Подробнее</button>
+              <button className="text-xs text-violet-400 hover:underline">Все возвраты</button>
+            </div>
+          </div>
+          <p className="text-3xl font-bold">0 ₽</p>
+        </div>
+        {/* Card 4 */}
+        <div className="bg-card border border-border rounded-2xl p-5">
+          <div className="flex items-start justify-between mb-2">
+            <p className="text-sm text-muted-foreground">Доступно к выводу</p>
+            <div className="flex gap-2">
+              <Icon name="Maximize2" size={14} className="text-muted-foreground cursor-pointer hover:text-foreground" />
+              <button className="text-xs text-violet-400 hover:underline">История выводов</button>
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <p className="text-3xl font-bold">{fmt(totalWithdrawable)}</p>
+            <button className="text-sm text-muted-foreground hover:text-foreground">Вывести</button>
+          </div>
+        </div>
+        {/* Card 5 */}
+        <div className="bg-card border border-border rounded-2xl p-5">
+          <div className="flex items-start justify-between mb-2">
+            <p className="text-sm text-muted-foreground">Входящие сделки</p>
+            <button className="text-xs text-violet-400 hover:underline">Смотреть</button>
+          </div>
+          <div className="flex items-center justify-between">
+            <p className="text-3xl font-bold">{incomingOrders}</p>
+          </div>
+        </div>
+        {/* Card 6 */}
+        <div className="bg-card border border-border rounded-2xl p-5">
+          <div className="flex items-start justify-between mb-2">
+            <p className="text-sm text-muted-foreground">Продажи за сегодня</p>
+            <button className="text-xs text-violet-400 hover:underline" onClick={() => onNav("orders")}>Все продажи</button>
+          </div>
+          <p className="text-3xl font-bold">{fmt(todaySales)}</p>
+        </div>
+      </div>
+
+      {/* Events tabs */}
+      <div className="flex gap-6 border-b border-border mb-0">
+        {(["current", "past"] as const).map(t => (
+          <button key={t} onClick={() => setEventsTab(t)}
+            className={`pb-3 text-sm font-medium border-b-2 transition-colors ${eventsTab === t ? "border-violet-500 text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          >
+            {t === "current" ? "Текущие мероприятия" : "Прошедшие мероприятия"}
+          </button>
         ))}
       </div>
-      <div className="glass neon-border rounded-2xl p-5">
-        <h3 className="font-bold mb-4">Продажи по событиям</h3>
-        <div className="space-y-4">
-          {orgEvents.map((e) => {
-            const pct = Math.round((e.sold / e.total) * 100);
-            return (
-              <div key={e.id}>
-                <div className="flex justify-between text-sm mb-1.5">
-                  <span>{e.name}</span>
-                  <span className="text-muted-foreground">₽{e.revenue} · {pct}%</span>
-                </div>
-                <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
-                </div>
-              </div>
-            );
-          })}
+
+      {/* Event list */}
+      <div className="divide-y divide-border border-b border-border">
+        {displayed.map(ev => (
+          <EventRow key={ev.id} event={ev} onToggle={() => toggle(ev.id)} onToggleStatus={() => toggleStatus(ev.id)} isPast={eventsTab === "past"} />
+        ))}
+        {displayed.length === 0 && <p className="py-10 text-center text-muted-foreground text-sm">Мероприятий нет</p>}
+      </div>
+
+      {/* Create modal */}
+      {showCreate && <CreateEventModal onClose={() => setShowCreate(false)} onCreate={(e) => { setEvents(prev => [...prev, { ...e, expanded: false, status: "active" as const }]); setShowCreate(false); }} />}
+    </div>
+  );
+}
+
+/* ─── Event Row ─── */
+function EventRow({ event, onToggle, onToggleStatus, isPast }: { event: OrgEvent; onToggle: () => void; onToggleStatus: () => void; isPast: boolean }) {
+  const remaining = event.total - event.sold - event.reserved;
+
+  return (
+    <div className="py-5">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+        {/* Poster placeholder */}
+        <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-violet-600 to-pink-600 flex items-center justify-center flex-shrink-0">
+          <Icon name="Music" size={24} className="text-white" />
         </div>
+
+        <div className="flex-1 min-w-0">
+          <h3 className="font-bold text-base mb-0.5">{event.name}</h3>
+          <p className="text-sm text-muted-foreground">{event.location}</p>
+          <p className="text-sm text-muted-foreground">{event.date}, {event.time}</p>
+        </div>
+
+        {!isPast && (
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button onClick={onToggleStatus}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${event.status === "active" ? "border-border text-muted-foreground hover:text-foreground hover:border-foreground/20" : "border-green-500/40 text-green-400 hover:bg-green-500/10"}`}
+            >
+              <Icon name={event.status === "active" ? "Pause" : "Play"} size={12} />
+              {event.status === "active" ? "Остановить продажи" : "Запустить продажи"}
+            </button>
+            <button className="p-1.5 rounded-lg border border-border hover:bg-white/5 text-muted-foreground">
+              <Icon name="MoreHorizontal" size={16} />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Details toggle */}
+      <button onClick={onToggle} className="flex items-center gap-1.5 mt-3 px-3 py-1.5 border border-border rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors">
+        Показать детали <Icon name={event.expanded ? "ChevronUp" : "ChevronDown"} size={13} />
+      </button>
+
+      {event.expanded && (
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="text-muted-foreground text-xs">
+                <td className="py-2 pr-8 font-medium">Итого:</td>
+                <td className="py-2 pr-8 text-right font-medium">Всего билетов</td>
+                <td className="py-2 pr-8 text-right font-medium">Осталось</td>
+                <td className="py-2 pr-8 text-right font-medium">Продано</td>
+                <td className="py-2 pr-8 text-right font-medium">Бронь</td>
+                <td className="py-2 pr-8 text-right font-medium">Пригласительные</td>
+                <td className="py-2 text-right font-medium">Сумма продаж</td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className="py-2 pr-8 text-muted-foreground text-xs">Итого:</td>
+                <td className="py-2 pr-8 text-right font-semibold">{event.total.toLocaleString("ru")}</td>
+                <td className="py-2 pr-8 text-right font-semibold">{remaining.toLocaleString("ru")}</td>
+                <td className="py-2 pr-8 text-right font-semibold">{event.sold.toLocaleString("ru")}</td>
+                <td className="py-2 pr-8 text-right font-semibold">{event.reserved}</td>
+                <td className="py-2 pr-8 text-right font-semibold">{event.invited}</td>
+                <td className="py-2 text-right font-semibold text-green-400">{fmt(event.revenue)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Create Event Modal ─── */
+function CreateEventModal({ onClose, onCreate }: { onClose: () => void; onCreate: (e: Omit<OrgEvent, "expanded" | "status">) => void }) {
+  const [form, setForm] = useState({ name: "", location: "", date: "", time: "19:00", total: 500, sold: 0, reserved: 0, invited: 0, revenue: 0 });
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name || !form.date) return;
+    onCreate({ ...form, id: Date.now() });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="bg-[#1a1a2e] border border-border rounded-2xl p-6 max-w-lg w-full" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="font-bold text-lg">Новое мероприятие</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5"><Icon name="X" size={18} className="text-muted-foreground" /></button>
+        </div>
+        <form onSubmit={submit} className="space-y-3">
+          <input required placeholder="Название мероприятия" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full bg-secondary/50 border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500" />
+          <input placeholder="Место проведения" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} className="w-full bg-secondary/50 border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500" />
+          <div className="grid grid-cols-2 gap-3">
+            <input required type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} className="bg-secondary/50 border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500" />
+            <input type="time" value={form.time} onChange={e => setForm({ ...form, time: e.target.value })} className="bg-secondary/50 border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500" />
+          </div>
+          <input type="number" placeholder="Количество билетов" value={form.total} onChange={e => setForm({ ...form, total: +e.target.value })} className="w-full bg-secondary/50 border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500" />
+          <div className="flex gap-3 pt-2">
+            <button type="submit" className="flex-1 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors">Создать</button>
+            <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-xl bg-secondary text-sm text-muted-foreground hover:text-foreground">Отмена</button>
+          </div>
+        </form>
       </div>
     </div>
   );
 }
 
-/* ─── Org Events ─── */
+/* ─── Org Events section ─── */
 function OrgEvents() {
-  const [showAdd, setShowAdd] = useState(false);
-  const [events, setEvents] = useState(orgEvents);
-  const [form, setForm] = useState({ name: "", date: "", total: "", status: "active" });
+  const [events, setEvents] = useState(initOrgEvents);
+  const [showCreate, setShowCreate] = useState(false);
 
-  const addEvent = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.name || !form.date) return;
-    setEvents([...events, { id: Date.now(), name: form.name, date: form.date, sold: 0, total: Number(form.total) || 500, revenue: "0", status: form.status as "active" | "soon" }]);
-    setForm({ name: "", date: "", total: "", status: "active" });
-    setShowAdd(false);
-  };
+  const toggle = (id: number) => setEvents(prev => prev.map(e => e.id === id ? { ...e, expanded: !e.expanded } : e));
+  const toggleStatus = (id: number) => setEvents(prev => prev.map(e => e.id === id ? { ...e, status: e.status === "active" ? "paused" : "active" } : e));
 
   return (
-    <div className="animate-slide-up">
+    <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Мои события</h1>
-        <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-medium hover:opacity-90">
+        <h1 className="text-2xl font-bold" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Мероприятия</h1>
+        <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors">
           <Icon name="Plus" size={14} /> Создать
         </button>
       </div>
+      <div className="bg-card border border-border rounded-2xl divide-y divide-border px-6">
+        {events.map(ev => (
+          <EventRow key={ev.id} event={ev} onToggle={() => toggle(ev.id)} onToggleStatus={() => toggleStatus(ev.id)} isPast={false} />
+        ))}
+      </div>
+      {showCreate && <CreateEventModal onClose={() => setShowCreate(false)} onCreate={(e) => { setEvents(prev => [...prev, { ...e, expanded: false, status: "active" as const }]); setShowCreate(false); }} />}
+    </div>
+  );
+}
 
-      {showAdd && (
-        <form onSubmit={addEvent} className="glass neon-border rounded-2xl p-5 mb-6 animate-slide-up">
-          <h3 className="font-bold mb-4">Новое событие</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-            <input required placeholder="Название события" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="bg-secondary/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500" />
-            <input required type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} className="bg-secondary/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500" />
-            <input type="number" placeholder="Кол-во мест" value={form.total} onChange={e => setForm({ ...form, total: e.target.value })} className="bg-secondary/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500" />
-            <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} className="bg-secondary/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500">
-              <option value="active">Активно</option>
-              <option value="soon">Скоро</option>
-            </select>
-          </div>
-          <div className="flex gap-2">
-            <button type="submit" className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-medium hover:opacity-90">Создать</button>
-            <button type="button" onClick={() => setShowAdd(false)} className="px-5 py-2 rounded-xl glass text-sm text-muted-foreground hover:text-foreground">Отмена</button>
-          </div>
-        </form>
-      )}
+/* ─── Orders ─── */
+function OrgOrders() {
+  const orders = [
+    { id: "ORD-0001", event: "Neon Beats Festival", buyer: "Алексей К.", date: "30 апр 2026", tickets: 2, total: 6400, status: "paid" },
+    { id: "ORD-0002", event: "Чемпионат по футболу", buyer: "Мария В.", date: "29 апр 2026", tickets: 4, total: 7200, status: "paid" },
+    { id: "ORD-0003", event: "Stand Up: Новый сезон", buyer: "Сергей П.", date: "28 апр 2026", tickets: 1, total: 2000, status: "refund" },
+    { id: "ORD-0004", event: "Neon Beats Festival", buyer: "Ольга М.", date: "27 апр 2026", tickets: 3, total: 9600, status: "paid" },
+  ];
 
-      <div className="space-y-4">
-        {events.map((e) => {
-          const pct = Math.round((e.sold / e.total) * 100);
-          return (
-            <div key={e.id} className="glass neon-border rounded-2xl p-5 hover:card-glow transition-all">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-bold">{e.name}</h3>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${e.status === "active" ? "bg-green-500/20 text-green-400" : "bg-amber-500/20 text-amber-400"}`}>
-                      {e.status === "active" ? "Активно" : "Скоро"}
-                    </span>
-                  </div>
-                  <p className="text-muted-foreground text-sm">{e.date}</p>
-                </div>
-                <div className="flex gap-6 text-center">
-                  <div><p className="text-xl font-bold">{e.sold.toLocaleString()}</p><p className="text-xs text-muted-foreground">Продано</p></div>
-                  <div><p className="text-xl font-bold text-amber-400">₽{e.revenue}</p><p className="text-xs text-muted-foreground">Выручка</p></div>
-                </div>
-              </div>
-              <div className="mt-4">
-                <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
-                  <span>{e.sold.toLocaleString()} из {e.total.toLocaleString()} билетов</span>
-                  <span>{pct}%</span>
-                </div>
-                <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full" style={{ width: `${pct}%` }} />
-                </div>
-              </div>
-            </div>
-          );
-        })}
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Сделки</h1>
+        <span className="bg-red-500 text-white text-xs font-bold px-2.5 py-1 rounded-full">40</span>
+      </div>
+      <div className="bg-card border border-border rounded-2xl overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="border-b border-border">
+            <tr className="text-xs text-muted-foreground">
+              <th className="text-left px-5 py-3 font-medium">Заказ</th>
+              <th className="text-left px-5 py-3 font-medium">Мероприятие</th>
+              <th className="text-left px-5 py-3 font-medium hidden sm:table-cell">Покупатель</th>
+              <th className="text-left px-5 py-3 font-medium hidden md:table-cell">Дата</th>
+              <th className="text-right px-5 py-3 font-medium">Сумма</th>
+              <th className="text-right px-5 py-3 font-medium">Статус</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {orders.map(o => (
+              <tr key={o.id} className="hover:bg-white/2 transition-colors">
+                <td className="px-5 py-3 font-mono text-xs text-muted-foreground">{o.id}</td>
+                <td className="px-5 py-3 font-medium">{o.event}</td>
+                <td className="px-5 py-3 text-muted-foreground hidden sm:table-cell">{o.buyer}</td>
+                <td className="px-5 py-3 text-muted-foreground hidden md:table-cell">{o.date}</td>
+                <td className="px-5 py-3 text-right font-semibold">{fmt(o.total)}</td>
+                <td className="px-5 py-3 text-right">
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${o.status === "paid" ? "bg-green-500/15 text-green-400" : "bg-red-500/15 text-red-400"}`}>
+                    {o.status === "paid" ? "Оплачен" : "Возврат"}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
 }
 
-/* ─── Org Tasks ─── */
-function OrgTasks() {
-  const [tasks, setTasks] = useState(initTasks);
-  const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ title: "", assignee: "", deadline: "", status: "todo" });
-
-  const addTask = () => {
-    if (!form.title) return;
-    setTasks([...tasks, { ...form, id: Date.now(), event: "" }]);
-    setForm({ title: "", assignee: "", deadline: "", status: "todo" });
-    setShowAdd(false);
-  };
-
-  const cols = ["todo", "inprogress", "done"] as const;
-  const colLabel: Record<string, string> = { todo: "К выполнению", inprogress: "В работе", done: "Готово" };
-  const colDot: Record<string, string> = { todo: "bg-muted-foreground", inprogress: "bg-blue-400", done: "bg-green-400" };
+/* ─── Analytics ─── */
+function OrgAnalytics() {
+  const data = [
+    { month: "Янв", sales: 320 }, { month: "Фев", sales: 480 }, { month: "Мар", sales: 390 },
+    { month: "Апр", sales: 720 }, { month: "Май", sales: 880 }, { month: "Июн", sales: 610 },
+  ];
+  const max = Math.max(...data.map(d => d.sales));
 
   return (
-    <div className="animate-slide-up">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Задачи</h1>
-        <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-medium hover:opacity-90">
-          <Icon name="Plus" size={14} /> Добавить
-        </button>
+    <div>
+      <h1 className="text-2xl font-bold mb-6" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Аналитика</h1>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <div className="bg-card border border-border rounded-2xl p-5"><p className="text-sm text-muted-foreground mb-1">Конверсия</p><p className="text-3xl font-bold">3.8%</p></div>
+        <div className="bg-card border border-border rounded-2xl p-5"><p className="text-sm text-muted-foreground mb-1">Средний чек</p><p className="text-3xl font-bold">2 400 ₽</p></div>
+        <div className="bg-card border border-border rounded-2xl p-5"><p className="text-sm text-muted-foreground mb-1">Повторные покупки</p><p className="text-3xl font-bold">34%</p></div>
       </div>
-
-      {showAdd && (
-        <div className="glass neon-border rounded-2xl p-4 mb-5 animate-slide-up">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-            <input placeholder="Название задачи" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} className="bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500" />
-            <input placeholder="Исполнитель" value={form.assignee} onChange={e => setForm({ ...form, assignee: e.target.value })} className="bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500" />
-            <input type="date" value={form.deadline} onChange={e => setForm({ ...form, deadline: e.target.value })} className="bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500" />
-            <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} className="bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500">
-              <option value="todo">К выполнению</option>
-              <option value="inprogress">В работе</option>
-              <option value="done">Готово</option>
-            </select>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={addTask} className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-medium hover:opacity-90">Сохранить</button>
-            <button onClick={() => setShowAdd(false)} className="px-4 py-2 rounded-xl glass text-sm text-muted-foreground hover:text-foreground">Отмена</button>
-          </div>
+      <div className="bg-card border border-border rounded-2xl p-6">
+        <h3 className="font-bold mb-6">Продажи по месяцам</h3>
+        <div className="flex items-end gap-3 h-40">
+          {data.map(d => (
+            <div key={d.month} className="flex-1 flex flex-col items-center gap-1">
+              <span className="text-xs text-muted-foreground">{d.sales}</span>
+              <div className="w-full rounded-t-lg bg-violet-600/80 transition-all" style={{ height: `${(d.sales / max) * 100}%` }} />
+              <span className="text-xs text-muted-foreground">{d.month}</span>
+            </div>
+          ))}
         </div>
-      )}
+      </div>
+    </div>
+  );
+}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {cols.map((col) => (
-          <div key={col} className="glass rounded-2xl border border-white/5 p-4">
-            <div className="flex items-center gap-2 mb-4">
-              <div className={`w-2 h-2 rounded-full ${colDot[col]}`} />
-              <span className="font-semibold text-sm">{colLabel[col]}</span>
-              <span className="ml-auto text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">{tasks.filter(t => t.status === col).length}</span>
+/* ─── Money ─── */
+function OrgMoney() {
+  const txns = [
+    { date: "30 апр", desc: "Продажа билетов — Neon Beats Festival", amount: 12800, type: "income" },
+    { date: "28 апр", desc: "Продажа билетов — Чемпионат", amount: 36000, type: "income" },
+    { date: "25 апр", desc: "Возврат — Stand Up Night", amount: -2000, type: "refund" },
+    { date: "20 апр", desc: "Вывод средств", amount: -50000, type: "withdraw" },
+  ];
+  return (
+    <div>
+      <h1 className="text-2xl font-bold mb-6" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Деньги</h1>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+        <div className="bg-card border border-border rounded-2xl p-5">
+          <p className="text-sm text-muted-foreground mb-1">Баланс счёта</p>
+          <p className="text-3xl font-bold">137 835 ₽</p>
+          <button className="mt-3 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition-colors">Вывести</button>
+        </div>
+        <div className="bg-card border border-border rounded-2xl p-5">
+          <p className="text-sm text-muted-foreground mb-1">Продано (заморожено)</p>
+          <p className="text-3xl font-bold">163 500 ₽</p>
+          <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1"><Icon name="Lock" size={12} /> Поступит после мероприятия</p>
+        </div>
+      </div>
+      <div className="bg-card border border-border rounded-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-border">
+          <h3 className="font-bold">История операций</h3>
+        </div>
+        <div className="divide-y divide-border">
+          {txns.map((t, i) => (
+            <div key={i} className="flex items-center gap-4 px-5 py-3">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${t.type === "income" ? "bg-green-500/15" : t.type === "refund" ? "bg-red-500/15" : "bg-muted"}`}>
+                <Icon name={t.type === "income" ? "ArrowDownLeft" : t.type === "refund" ? "RotateCcw" : "ArrowUpRight"} size={14} className={t.type === "income" ? "text-green-400" : t.type === "refund" ? "text-red-400" : "text-muted-foreground"} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{t.desc}</p>
+                <p className="text-xs text-muted-foreground">{t.date}</p>
+              </div>
+              <span className={`font-semibold text-sm flex-shrink-0 ${t.amount > 0 ? "text-green-400" : "text-muted-foreground"}`}>
+                {t.amount > 0 ? "+" : ""}{fmt(Math.abs(t.amount))}
+              </span>
             </div>
-            <div className="space-y-2">
-              {tasks.filter(t => t.status === col).map((t) => (
-                <div key={t.id} className="p-3 rounded-xl bg-secondary/30 hover:bg-secondary/50 transition-colors">
-                  <p className="text-sm font-medium mb-1">{t.title}</p>
-                  {t.event && <p className="text-xs text-amber-400 mb-1">{t.event}</p>}
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">{t.assignee}</p>
-                    {t.deadline && <p className="text-xs text-muted-foreground">{t.deadline}</p>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -464,10 +657,10 @@ function QRScanner() {
   useEffect(() => () => stopCamera(), [stopCamera]);
 
   return (
-    <div className="animate-slide-up max-w-lg">
+    <div className="max-w-lg">
       <h1 className="text-2xl font-bold mb-2" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>QR-сканер</h1>
       <p className="text-muted-foreground text-sm mb-6">Сканируй билеты на входе мероприятия</p>
-      <div className="glass neon-border rounded-3xl overflow-hidden mb-4">
+      <div className="bg-card border border-border rounded-2xl overflow-hidden mb-4">
         <div className="relative bg-black aspect-square max-h-72 flex items-center justify-center">
           <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
           <canvas ref={canvasRef} className="hidden" />
@@ -479,17 +672,17 @@ function QRScanner() {
           )}
           {scanning && (
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-              <div className="w-48 h-48 border-2 border-primary rounded-2xl relative">
-                <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-primary rounded-tl-xl" />
-                <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-primary rounded-tr-xl" />
-                <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-primary rounded-bl-xl" />
-                <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-primary rounded-br-xl" />
+              <div className="w-48 h-48 border-2 border-violet-400 rounded-2xl relative">
+                <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-violet-400 rounded-tl-xl" />
+                <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-violet-400 rounded-tr-xl" />
+                <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-violet-400 rounded-bl-xl" />
+                <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-violet-400 rounded-br-xl" />
               </div>
             </div>
           )}
         </div>
         {result && (
-          <div className={`p-4 border-t border-white/10 ${result.status === "Действителен" ? "bg-green-500/10" : "bg-red-500/10"}`}>
+          <div className={`p-4 border-t border-border ${result.status === "Действителен" ? "bg-green-500/10" : "bg-red-500/10"}`}>
             <div className="flex items-center gap-3">
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${result.status === "Действителен" ? "bg-green-500/20" : "bg-red-500/20"}`}>
                 <Icon name={result.status === "Действителен" ? "CheckCircle" : "XCircle"} size={20} className={result.status === "Действителен" ? "text-green-400" : "text-red-400"} />
@@ -504,7 +697,7 @@ function QRScanner() {
       </div>
       {error && <p className="text-red-400 text-sm mb-4 text-center">{error}</p>}
       <button onClick={scanning ? stopCamera : startCamera}
-        className={`w-full py-3 rounded-xl font-semibold text-sm transition-all hover:scale-[1.02] flex items-center justify-center gap-2 ${scanning ? "glass neon-border text-foreground" : "bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:opacity-90"}`}>
+        className={`w-full py-3 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${scanning ? "bg-card border border-border text-foreground hover:bg-white/5" : "bg-violet-600 hover:bg-violet-500 text-white"}`}>
         <Icon name={scanning ? "CameraOff" : "ScanLine"} size={16} />
         {scanning ? "Остановить сканер" : "Запустить сканер"}
       </button>
@@ -512,120 +705,15 @@ function QRScanner() {
   );
 }
 
-/* ─── Venue Scheme ─── */
-function VenueScheme() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [zones, setZones] = useState<Zone[]>(DEFAULT_ZONES);
-  const [selected, setSelected] = useState<number | null>(null);
-  const [venueName, setVenueName] = useState("Клуб Арена");
-  const [dragging, setDragging] = useState<{ id: number; ox: number; oy: number } | null>(null);
-
-  const draw = useCallback(() => {
-    const canvas = canvasRef.current; if (!canvas) return;
-    const ctx = canvas.getContext("2d"); if (!ctx) return;
-    ctx.fillStyle = "#0a0a12"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    zones.forEach((z) => {
-      const isSel = z.id === selected;
-      ctx.save(); ctx.shadowColor = z.color; ctx.shadowBlur = isSel ? 20 : 8;
-      ctx.fillStyle = z.color + "44"; ctx.strokeStyle = z.color; ctx.lineWidth = isSel ? 3 : 1.5;
-      const r = 10;
-      ctx.beginPath();
-      ctx.moveTo(z.x + r, z.y); ctx.lineTo(z.x + z.w - r, z.y); ctx.quadraticCurveTo(z.x + z.w, z.y, z.x + z.w, z.y + r);
-      ctx.lineTo(z.x + z.w, z.y + z.h - r); ctx.quadraticCurveTo(z.x + z.w, z.y + z.h, z.x + z.w - r, z.y + z.h);
-      ctx.lineTo(z.x + r, z.y + z.h); ctx.quadraticCurveTo(z.x, z.y + z.h, z.x, z.y + z.h - r);
-      ctx.lineTo(z.x, z.y + r); ctx.quadraticCurveTo(z.x, z.y, z.x + r, z.y);
-      ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
-      ctx.fillStyle = "#fff"; ctx.font = "bold 13px Inter,sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText(z.name, z.x + z.w / 2, z.y + z.h / 2);
-    });
-  }, [zones, selected]);
-
-  useEffect(() => { draw(); }, [draw]);
-
-  const zoneAt = (x: number, y: number) => [...zones].reverse().find(z => x >= z.x && x <= z.x + z.w && y >= z.y && y <= z.y + z.h);
-
-  const onDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const rect = canvasRef.current!.getBoundingClientRect();
-    const sx = canvasRef.current!.width / rect.width;
-    const sy = canvasRef.current!.height / rect.height;
-    const x = (e.clientX - rect.left) * sx;
-    const y = (e.clientY - rect.top) * sy;
-    const zone = zoneAt(x, y);
-    if (zone) { setSelected(zone.id); setDragging({ id: zone.id, ox: x - zone.x, oy: y - zone.y }); }
-    else setSelected(null);
-  };
-
-  const onMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!dragging) return;
-    const rect = canvasRef.current!.getBoundingClientRect();
-    const sx = canvasRef.current!.width / rect.width;
-    const sy = canvasRef.current!.height / rect.height;
-    const x = (e.clientX - rect.left) * sx - dragging.ox;
-    const y = (e.clientY - rect.top) * sy - dragging.oy;
-    setZones(prev => prev.map(z => z.id === dragging.id ? { ...z, x: Math.max(0, x), y: Math.max(0, y) } : z));
-  };
-
-  const selZone = zones.find(z => z.id === selected);
-  const updateZone = (patch: Partial<Zone>) => setZones(zones.map(z => z.id === selected ? { ...z, ...patch } : z));
-  const addZone = () => { const id = Date.now(); setZones([...zones, { id, name: "Зона " + (zones.length + 1), x: 100, y: 100, w: 120, h: 80, color: ZONE_COLORS[zones.length % ZONE_COLORS.length] }]); setSelected(id); };
-  const removeZone = (id: number) => { setZones(zones.filter(z => z.id !== id)); if (selected === id) setSelected(null); };
-  const exportPNG = () => { const a = document.createElement("a"); a.download = `${venueName}.png`; a.href = canvasRef.current!.toDataURL(); a.click(); };
-
+/* ─── Coming Soon ─── */
+function ComingSoon({ label }: { label: string }) {
   return (
-    <div className="animate-slide-up">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Схемы площадок</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">Перетаскивай зоны для редактирования</p>
-        </div>
-        <button onClick={exportPNG} className="flex items-center gap-2 px-4 py-2 rounded-xl glass neon-border text-sm text-foreground hover:bg-white/5 transition-colors">
-          <Icon name="Download" size={14} /> PNG
-        </button>
+    <div className="flex flex-col items-center justify-center py-24 text-center">
+      <div className="w-14 h-14 rounded-2xl bg-card border border-border flex items-center justify-center mb-4">
+        <Icon name="Construction" size={24} className="text-muted-foreground" />
       </div>
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="xl:col-span-2">
-          <div className="glass neon-border rounded-2xl overflow-hidden">
-            <div className="px-4 py-2 border-b border-white/5 flex items-center gap-3">
-              <input value={venueName} onChange={e => setVenueName(e.target.value)} className="bg-transparent text-sm font-medium focus:outline-none" />
-              <button onClick={addZone} className="ml-auto flex items-center gap-1 px-3 py-1 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-medium hover:opacity-90">
-                <Icon name="Plus" size={12} /> Зона
-              </button>
-            </div>
-            <canvas ref={canvasRef} width={800} height={560} onMouseDown={onDown} onMouseMove={onMove} onMouseUp={() => setDragging(null)} onMouseLeave={() => setDragging(null)} className="w-full cursor-grab active:cursor-grabbing" style={{ maxHeight: "420px" }} />
-          </div>
-        </div>
-        <div className="flex flex-col gap-3">
-          <div className="glass neon-border rounded-2xl p-4">
-            <h3 className="font-bold text-sm mb-3">Зоны ({zones.length})</h3>
-            <div className="space-y-1.5 max-h-52 overflow-y-auto">
-              {zones.map(z => (
-                <div key={z.id} onClick={() => setSelected(z.id)} className={`flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer transition-colors ${selected === z.id ? "bg-amber-500/10 border border-amber-500/30" : "hover:bg-secondary/40"}`}>
-                  <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: z.color }} />
-                  <span className="text-sm flex-1 truncate">{z.name}</span>
-                  <button onClick={e => { e.stopPropagation(); removeZone(z.id); }} className="text-muted-foreground hover:text-red-400"><Icon name="Trash2" size={12} /></button>
-                </div>
-              ))}
-            </div>
-          </div>
-          {selZone && (
-            <div className="glass rounded-2xl border border-amber-500/20 p-4 animate-slide-up">
-              <h3 className="font-bold text-sm mb-3">Редактор зоны</h3>
-              <div className="space-y-2">
-                <input value={selZone.name} onChange={e => updateZone({ name: e.target.value })} className="w-full bg-secondary/50 border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500" />
-                <div className="grid grid-cols-2 gap-2">
-                  <input type="number" value={selZone.w} onChange={e => updateZone({ w: +e.target.value })} placeholder="Ширина" className="bg-secondary/50 border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500" />
-                  <input type="number" value={selZone.h} onChange={e => updateZone({ h: +e.target.value })} placeholder="Высота" className="bg-secondary/50 border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500" />
-                </div>
-                <div className="flex gap-1.5 flex-wrap">
-                  {ZONE_COLORS.map(c => (
-                    <button key={c} onClick={() => updateZone({ color: c })} className={`w-7 h-7 rounded-lg hover:scale-110 transition-transform ${selZone.color === c ? "ring-2 ring-white ring-offset-1 ring-offset-background" : ""}`} style={{ backgroundColor: c }} />
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+      <h2 className="text-xl font-bold mb-2">{label}</h2>
+      <p className="text-muted-foreground text-sm">Раздел в разработке</p>
     </div>
   );
 }
@@ -639,19 +727,16 @@ export default function Profile() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-background">
-        <Navbar />
-        <div className="pt-32 flex flex-col items-center justify-center px-4">
-          <div className="glass neon-border rounded-3xl p-10 max-w-md w-full text-center animate-slide-up">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center mx-auto mb-6 animate-pulse-glow">
-              <Icon name="Lock" size={28} className="text-white" />
-            </div>
-            <h2 className="text-2xl font-bold mb-2">Войдите в аккаунт</h2>
-            <p className="text-muted-foreground mb-6">Для доступа к личному кабинету необходима авторизация</p>
-            <button onClick={() => navigate("/login")} className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-600 to-pink-600 text-white font-semibold hover:opacity-90 transition-opacity">
-              Войти / Зарегистрироваться
-            </button>
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4">
+        <div className="glass neon-border rounded-3xl p-10 max-w-md w-full text-center">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center mx-auto mb-6 animate-pulse-glow">
+            <Icon name="Lock" size={28} className="text-white" />
           </div>
+          <h2 className="text-2xl font-bold mb-2">Войдите в аккаунт</h2>
+          <p className="text-muted-foreground mb-6">Для доступа к личному кабинету необходима авторизация</p>
+          <button onClick={() => navigate("/login")} className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-600 to-pink-600 text-white font-semibold hover:opacity-90 transition-opacity">
+            Войти / Зарегистрироваться
+          </button>
         </div>
       </div>
     );
