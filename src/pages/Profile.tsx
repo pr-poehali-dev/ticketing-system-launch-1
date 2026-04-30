@@ -4,6 +4,7 @@ import { QRCodeSVG } from "qrcode.react";
 import jsQR from "jsqr";
 import Icon from "@/components/ui/icon";
 import { useAuth } from "@/context/AuthContext";
+import CreateEventWizard, { NewEvent } from "@/components/CreateEventWizard";
 
 /* ─── Mock data ─── */
 const mockTickets = [
@@ -244,7 +245,7 @@ function OrgProfile() {
 function OrgHome({ onNav }: { onNav: (id: SidebarId) => void }) {
   const [eventsTab, setEventsTab] = useState<"current" | "past">("current");
   const [events, setEvents] = useState(initOrgEvents);
-  const [showCreate, setShowCreate] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
 
   const totalBalance = 137835;
   const totalSold = 163500;
@@ -257,13 +258,23 @@ function OrgHome({ onNav }: { onNav: (id: SidebarId) => void }) {
 
   const displayed = eventsTab === "current" ? events.filter(e => e.status !== "past") : pastOrgEvents;
 
+  const handleCreate = (ev: NewEvent) => {
+    const dateStr = ev.date ? new Date(ev.date).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" }) : "";
+    setEvents(prev => [...prev, {
+      id: Date.now(), name: ev.name,
+      location: [ev.city, ev.address].filter(Boolean).join(", "),
+      date: dateStr, time: ev.time,
+      total: ev.ticketTypes.reduce((s, t) => s + t.quantity, 0),
+      sold: 0, reserved: 0, invited: 0, revenue: 0,
+      status: "active" as const, expanded: false,
+    }]);
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Главная</h1>
-        <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors">
-          Создать <Icon name="ChevronDown" size={14} />
-        </button>
+        <CreateButton onOpen={(type) => { setWizardType(type); setShowWizard(true); }} />
       </div>
 
       {/* Finance cards */}
@@ -347,8 +358,12 @@ function OrgHome({ onNav }: { onNav: (id: SidebarId) => void }) {
         {displayed.length === 0 && <p className="py-10 text-center text-muted-foreground text-sm">Мероприятий нет</p>}
       </div>
 
-      {/* Create modal */}
-      {showCreate && <CreateEventModal onClose={() => setShowCreate(false)} onCreate={(e) => { setEvents(prev => [...prev, { ...e, expanded: false, status: "active" as const }]); setShowCreate(false); }} />}
+      {showWizard && (
+        <CreateEventWizard
+          onClose={() => setShowWizard(false)}
+          onCreate={handleCreate}
+        />
+      )}
     </div>
   );
 }
@@ -423,37 +438,35 @@ function EventRow({ event, onToggle, onToggleStatus, isPast }: { event: OrgEvent
   );
 }
 
-/* ─── Create Event Modal ─── */
-function CreateEventModal({ onClose, onCreate }: { onClose: () => void; onCreate: (e: Omit<OrgEvent, "expanded" | "status">) => void }) {
-  const [form, setForm] = useState({ name: "", location: "", date: "", time: "19:00", total: 500, sold: 0, reserved: 0, invited: 0, revenue: 0 });
-
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.name || !form.date) return;
-    onCreate({ ...form, id: Date.now() });
-  };
-
+/* ─── Create button with dropdown ─── */
+function CreateButton({ onOpen }: { onOpen: (type: NewEvent["type"]) => void }) {
+  const [open, setOpen] = useState(false);
+  const types: { id: NewEvent["type"]; label: string }[] = [
+    { id: "single", label: "Одиночное мероприятие" },
+    { id: "periodic", label: "Периодическое мероприятие" },
+    { id: "non-periodic", label: "Непериодическое мероприятие" },
+  ];
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="bg-[#1a1a2e] border border-border rounded-2xl p-6 max-w-lg w-full" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="font-bold text-lg">Новое мероприятие</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5"><Icon name="X" size={18} className="text-muted-foreground" /></button>
-        </div>
-        <form onSubmit={submit} className="space-y-3">
-          <input required placeholder="Название мероприятия" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full bg-secondary/50 border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500" />
-          <input placeholder="Место проведения" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} className="w-full bg-secondary/50 border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500" />
-          <div className="grid grid-cols-2 gap-3">
-            <input required type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} className="bg-secondary/50 border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500" />
-            <input type="time" value={form.time} onChange={e => setForm({ ...form, time: e.target.value })} className="bg-secondary/50 border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500" />
+    <div className="relative">
+      <button onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-black text-sm font-bold transition-colors"
+      >
+        Создать <Icon name="ChevronDown" size={14} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-full mt-1 z-50 w-64 bg-[#1a1a2e] border border-border rounded-2xl shadow-2xl py-2">
+            {types.map(t => (
+              <button key={t.id} onClick={() => { setOpen(false); onOpen(t.id); }}
+                className="w-full text-left px-5 py-3 text-sm hover:bg-white/5 transition-colors"
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
-          <input type="number" placeholder="Количество билетов" value={form.total} onChange={e => setForm({ ...form, total: +e.target.value })} className="w-full bg-secondary/50 border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500" />
-          <div className="flex gap-3 pt-2">
-            <button type="submit" className="flex-1 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors">Создать</button>
-            <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-xl bg-secondary text-sm text-muted-foreground hover:text-foreground">Отмена</button>
-          </div>
-        </form>
-      </div>
+        </>
+      )}
     </div>
   );
 }
@@ -461,25 +474,182 @@ function CreateEventModal({ onClose, onCreate }: { onClose: () => void; onCreate
 /* ─── Org Events section ─── */
 function OrgEvents() {
   const [events, setEvents] = useState(initOrgEvents);
-  const [showCreate, setShowCreate] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
+  const [wizardType, setWizardType] = useState<NewEvent["type"]>("single");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [quickFilter, setQuickFilter] = useState<string | null>(null);
+  const [view, setView] = useState<"list" | "board">("list");
 
   const toggle = (id: number) => setEvents(prev => prev.map(e => e.id === id ? { ...e, expanded: !e.expanded } : e));
   const toggleStatus = (id: number) => setEvents(prev => prev.map(e => e.id === id ? { ...e, status: e.status === "active" ? "paused" : "active" } : e));
 
+  const handleCreate = (ev: NewEvent) => {
+    const dateStr = ev.date ? new Date(ev.date).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" }) : "";
+    setEvents(prev => [...prev, {
+      id: Date.now(), name: ev.name,
+      location: [ev.city, ev.address].filter(Boolean).join(", "),
+      date: dateStr, time: ev.time,
+      total: ev.ticketTypes.reduce((s, t) => s + t.quantity, 0),
+      sold: 0, reserved: 0, invited: 0, revenue: 0,
+      status: "active" as const, expanded: false,
+    }]);
+  };
+
+  const filtered = events.filter(e => {
+    if (search && !e.name.toLowerCase().includes(search.toLowerCase())) return false;
+    if (statusFilter !== "all" && e.status !== statusFilter) return false;
+    return true;
+  });
+
+  const quickFilters = ["Текущие мероприятия", "Пройдут в этом месяце", "Пройдут в следующем месяце"];
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-5">
         <h1 className="text-2xl font-bold" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Мероприятия</h1>
-        <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors">
-          <Icon name="Plus" size={14} /> Создать
-        </button>
+        <CreateButton onOpen={(type) => { setWizardType(type); setShowWizard(true); }} />
       </div>
-      <div className="bg-card border border-border rounded-2xl divide-y divide-border px-6">
-        {events.map(ev => (
-          <EventRow key={ev.id} event={ev} onToggle={() => toggle(ev.id)} onToggleStatus={() => toggleStatus(ev.id)} isPast={false} />
+
+      {/* Filters row */}
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <Icon name="Search" size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск"
+            className="w-full pl-9 pr-3 py-2 bg-card border border-border rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-violet-500 placeholder:text-muted-foreground"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Статус</span>
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+            className="bg-card border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
+          >
+            <option value="all">Все</option>
+            <option value="active">В продаже</option>
+            <option value="paused">Остановлено</option>
+          </select>
+        </div>
+        <div className="flex items-center gap-1 ml-auto">
+          <button onClick={() => setView("list")} className={`p-2 rounded-lg transition-colors ${view === "list" ? "bg-violet-500/20 text-violet-400" : "text-muted-foreground hover:bg-white/5"}`}>
+            <Icon name="List" size={16} />
+          </button>
+          <button onClick={() => setView("board")} className={`p-2 rounded-lg transition-colors ${view === "board" ? "bg-violet-500/20 text-violet-400" : "text-muted-foreground hover:bg-white/5"}`}>
+            <Icon name="LayoutGrid" size={16} />
+          </button>
+        </div>
+      </div>
+
+      {/* Quick filters */}
+      <div className="flex flex-wrap gap-2 mb-5">
+        <span className="text-xs text-muted-foreground self-center">Быстрые фильтры:</span>
+        {quickFilters.map(f => (
+          <button key={f} onClick={() => setQuickFilter(quickFilter === f ? null : f)}
+            className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${quickFilter === f ? "border-violet-500 bg-violet-500/15 text-violet-400" : "border-border text-muted-foreground hover:text-foreground hover:border-white/20"}`}
+          >
+            {f}
+          </button>
         ))}
       </div>
-      {showCreate && <CreateEventModal onClose={() => setShowCreate(false)} onCreate={(e) => { setEvents(prev => [...prev, { ...e, expanded: false, status: "active" as const }]); setShowCreate(false); }} />}
+
+      {/* Event list */}
+      <div className="bg-card border border-border rounded-2xl overflow-hidden">
+        {/* Table header */}
+        <div className="hidden md:grid grid-cols-[1fr_auto_auto_auto_auto] gap-4 px-5 py-3 border-b border-border text-xs text-muted-foreground font-medium">
+          <span>Название</span>
+          <span>Статус</span>
+          <span>Город</span>
+          <span></span>
+          <span></span>
+        </div>
+
+        <div className="divide-y divide-border">
+          {filtered.map(ev => (
+            <div key={ev.id} className="px-5 py-4">
+              <div className="flex items-start gap-4">
+                {/* Poster */}
+                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-violet-600 to-pink-600 flex items-center justify-center flex-shrink-0">
+                  <Icon name="Music" size={22} className="text-white" />
+                </div>
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-sm leading-tight mb-0.5">{ev.name}</h3>
+                  <p className="text-xs text-muted-foreground">{ev.location}</p>
+                  <p className="text-xs text-muted-foreground">{ev.date}{ev.time ? `, ${ev.time}` : ""}</p>
+                </div>
+                {/* Status badge */}
+                <span className={`flex-shrink-0 text-xs px-3 py-1 rounded-full font-semibold hidden sm:inline-flex items-center gap-1 ${ev.status === "active" ? "bg-blue-600 text-white" : ev.status === "paused" ? "bg-muted text-muted-foreground" : "bg-muted text-muted-foreground"}`}>
+                  {ev.status === "active" ? "В продаже" : ev.status === "paused" ? "Остановлено" : "Прошло"}
+                </span>
+                {/* City */}
+                <span className="hidden lg:block text-sm text-muted-foreground flex-shrink-0 w-24 truncate">
+                  {ev.location.split(",")[0]}
+                </span>
+                {/* Actions */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button onClick={() => toggleStatus(ev.id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:border-white/20 transition-colors"
+                  >
+                    <Icon name={ev.status === "active" ? "Pause" : "Play"} size={11} />
+                    {ev.status === "active" ? "Остановить" : "Запустить"}
+                  </button>
+                  <button className="px-3 py-1.5 border border-border rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:border-white/20 transition-colors">
+                    Виджет
+                  </button>
+                </div>
+              </div>
+
+              {/* Details expand */}
+              <button onClick={() => toggle(ev.id)}
+                className="flex items-center gap-1.5 mt-3 px-3 py-1.5 border border-border rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors"
+              >
+                Показать детали <Icon name={ev.expanded ? "ChevronUp" : "ChevronDown"} size={12} />
+              </button>
+
+              {ev.expanded && (
+                <div className="mt-4 overflow-x-auto rounded-xl border border-border">
+                  <table className="w-full text-xs">
+                    <thead className="border-b border-border bg-secondary/30">
+                      <tr className="text-muted-foreground">
+                        <td className="px-4 py-2 font-medium"></td>
+                        <td className="px-4 py-2 font-medium text-right">Всего билетов</td>
+                        <td className="px-4 py-2 font-medium text-right">Осталось</td>
+                        <td className="px-4 py-2 font-medium text-right">Продано</td>
+                        <td className="px-4 py-2 font-medium text-right">Бронь</td>
+                        <td className="px-4 py-2 font-medium text-right">Пригласительные</td>
+                        <td className="px-4 py-2 font-medium text-right">Сумма продаж</td>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td className="px-4 py-3 text-muted-foreground font-medium">Итого:</td>
+                        <td className="px-4 py-3 text-right font-semibold">{ev.total.toLocaleString("ru")}</td>
+                        <td className="px-4 py-3 text-right font-semibold">{(ev.total - ev.sold - ev.reserved).toLocaleString("ru")}</td>
+                        <td className="px-4 py-3 text-right font-semibold">{ev.sold.toLocaleString("ru")}</td>
+                        <td className="px-4 py-3 text-right font-semibold">{ev.reserved}</td>
+                        <td className="px-4 py-3 text-right font-semibold">{ev.invited}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-green-400">{fmt(ev.revenue)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          ))}
+          {filtered.length === 0 && (
+            <div className="py-16 text-center text-muted-foreground text-sm">
+              <Icon name="Calendar" size={32} className="mx-auto mb-3 opacity-30" />
+              <p>Мероприятий не найдено</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {showWizard && (
+        <CreateEventWizard
+          onClose={() => setShowWizard(false)}
+          onCreate={handleCreate}
+        />
+      )}
     </div>
   );
 }
