@@ -5,6 +5,8 @@ import jsQR from "jsqr";
 import Icon from "@/components/ui/icon";
 import { useAuth } from "@/context/AuthContext";
 import CreateEventWizard, { NewEvent } from "@/components/CreateEventWizard";
+import EditEventDrawer from "@/components/EditEventDrawer";
+import type { OrgEvent } from "@/types/event";
 
 /* ─── Mock data ─── */
 const mockTickets = [
@@ -13,21 +15,7 @@ const mockTickets = [
   { id: "TW-2025-087", event: "Stand Up Night", date: "12 апр 2025", time: "19:00", location: "Москва, Comedy Club", seat: "VIP зона, стол 3", price: "2 000 ₽", status: "used", color: "from-green-500 to-teal-500" },
 ];
 
-type OrgEvent = {
-  id: number;
-  name: string;
-  location: string;
-  date: string;
-  time: string;
-  total: number;
-  sold: number;
-  reserved: number;
-  invited: number;
-  revenue: number;
-  status: "active" | "paused" | "past";
-  expanded: boolean;
-  image?: string;
-};
+
 
 const initOrgEvents: OrgEvent[] = [
   { id: 1, name: "Neon Beats Festival", location: "Москва, Олимпийский", date: "15 мая 2026", time: "20:00", total: 1000, sold: 880, reserved: 12, invited: 5, revenue: 2816000, status: "active", expanded: false },
@@ -476,6 +464,7 @@ function OrgEvents() {
   const [events, setEvents] = useState(initOrgEvents);
   const [showWizard, setShowWizard] = useState(false);
   const [wizardType, setWizardType] = useState<NewEvent["type"]>("single");
+  const [editingEvent, setEditingEvent] = useState<OrgEvent | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [quickFilter, setQuickFilter] = useState<string | null>(null);
@@ -483,6 +472,7 @@ function OrgEvents() {
 
   const toggle = (id: number) => setEvents(prev => prev.map(e => e.id === id ? { ...e, expanded: !e.expanded } : e));
   const toggleStatus = (id: number) => setEvents(prev => prev.map(e => e.id === id ? { ...e, status: e.status === "active" ? "paused" : "active" } : e));
+  const handleSaveEdit = (updated: OrgEvent) => setEvents(prev => prev.map(e => e.id === updated.id ? updated : e));
 
   const handleCreate = (ev: NewEvent) => {
     const dateStr = ev.date ? new Date(ev.date).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" }) : "";
@@ -586,14 +576,17 @@ function OrgEvents() {
                 </span>
                 {/* Actions */}
                 <div className="flex items-center gap-2 flex-shrink-0">
+                  <button onClick={() => setEditingEvent(ev)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:border-amber-400/40 hover:text-amber-400 transition-colors"
+                  >
+                    <Icon name="Pencil" size={11} />
+                    Редактировать
+                  </button>
                   <button onClick={() => toggleStatus(ev.id)}
                     className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:border-white/20 transition-colors"
                   >
                     <Icon name={ev.status === "active" ? "Pause" : "Play"} size={11} />
                     {ev.status === "active" ? "Остановить" : "Запустить"}
-                  </button>
-                  <button className="px-3 py-1.5 border border-border rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:border-white/20 transition-colors">
-                    Виджет
                   </button>
                 </div>
               </div>
@@ -648,6 +641,14 @@ function OrgEvents() {
         <CreateEventWizard
           onClose={() => setShowWizard(false)}
           onCreate={handleCreate}
+        />
+      )}
+
+      {editingEvent && (
+        <EditEventDrawer
+          event={editingEvent}
+          onClose={() => setEditingEvent(null)}
+          onSave={(updated) => { handleSaveEdit(updated); setEditingEvent(updated); }}
         />
       )}
     </div>
