@@ -7,6 +7,7 @@ import Home from "./pages/Home";
 import Events from "./pages/Events";
 import Profile from "./pages/Profile";
 import Support from "./pages/Support";
+import CRM from "./pages/CRM";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,6 +23,7 @@ const App = () => (
           <Route path="/events" element={<Events />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/support" element={<Support />} />
+          <Route path="/crm" element={<CRM />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

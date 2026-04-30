@@ -44,6 +44,13 @@ export default function Navbar() {
 
           <div className="hidden md:flex items-center gap-3">
             <Link
+              to="/crm"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg glass neon-border text-muted-foreground text-sm font-medium hover:text-foreground transition-all"
+            >
+              <Icon name="LayoutDashboard" size={14} />
+              CRM
+            </Link>
+            <Link
               to="/profile"
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-violet-600 to-pink-600 text-white text-sm font-medium hover:opacity-90 transition-opacity"
             >
